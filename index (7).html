@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ning's Study Calendar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f5f0;
+    --card: #ffffff;
+    --border: #ede9e0;
+    --text: #1a1814;
+    --muted: #9c9789;
+    --red: #e85d4a;
+    --yellow: #c9920a;
+    --blue: #2d6be4;
+    --green: #2d9e6b;
+    --purple: #7c4dcc;
+    --teal: #0d9488;
+    --peak: #7c3aed;
+    --peak-bg: #f5f0ff;
+    --peak-border: #ddd6fe;
+    --phase1: #c8a96e;
+    --phase2: #6a9fb5;
+    --phase3: #8bb87a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    padding: 2rem 1rem 5rem;
+    max-width: 700px;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .header { margin-bottom: 1.8rem; }
+  .header-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 0.4rem; }
+  .header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  .header p { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.08em; font-family: 'DM Mono', monospace; margin-top: 0.3rem; }
+
+  .section { margin-bottom: 2rem; }
+  .section-title { font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.8rem; font-family: 'DM Mono', monospace; }
+
+  .divider { height: 1px; background: var(--border); margin: 2rem 0; }
+
+  /* ── overview ── */
+  .overview-phases { display: flex; flex-direction: column; gap: 1rem; }
+  .ov-phase { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .ov-phase-header { display: flex; align-items: center; gap: 0.7rem; padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--border); }
+  .ov-phase-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .ov-phase-title { font-weight: 600; font-size: 0.85rem; }
+  .ov-phase-dates { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .ov-items { padding: 0.5rem 0; }
+  .ov-item { display: flex; align-items: flex-start; gap: 0.8rem; padding: 0.5rem 1.1rem; border-bottom: 1px solid var(--border); }
+  .ov-item:last-child { border-bottom: none; }
+  .ov-tag { font-family: 'DM Mono', monospace; font-size: 0.58rem; font-weight: 500; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tag-cert { background: #fef3c7; color: #92400e; }
+  .tag-book { background: #dbeafe; color: #1e40af; }
+  .ov-name { font-size: 0.8rem; font-weight: 500; flex: 1; line-height: 1.4; }
+  .ov-when { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--muted); white-space: nowrap; margin-top: 2px; flex-shrink: 0; }
+
+  /* ── schedule ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .time-block { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
+  .time-block:last-child { border-bottom: none; }
+  .block-accent { width: 4px; flex-shrink: 0; }
+  .block-inner { display: flex; gap: 1rem; align-items: flex-start; padding: 0.75rem 1.1rem; flex: 1; }
+  .time-tag { font-family: 'DM Mono', monospace; font-size: 0.63rem; color: var(--muted); min-width: 82px; padding-top: 2px; flex-shrink: 0; }
+  .block-content { flex: 1; }
+  .block-label { font-weight: 600; font-size: 0.84rem; margin-bottom: 0.12rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .block-desc { font-size: 0.73rem; color: var(--muted); line-height: 1.5; }
+
+  .peak-block { background: #faf7ff; }
+  .warn-block  { background: #fff9f0; }
+  .dog-block   { background: #f0fdf9; }
+
+  .ac-warn   { background: #f59e0b; }
+  .ac-work   { background: #3b82f6; }
+  .ac-cert   { background: #7c3aed; }
+  .ac-dog    { background: #10b981; }
+  .ac-admin  { background: #f59e0b; }
+  .ac-rest   { background: #e5e7eb; }
+  .ac-health { background: #10b981; }
+  .ac-read   { background: #c8a96e; }
+  .ac-phone  { background: #e85d4a; }
+
+  .badge { font-size: 0.55rem; padding: 1px 6px; border-radius: 10px; font-family: 'DM Mono', monospace; font-weight: 500; }
+  .badge-purple { background: #7c3aed; color: white; }
+  .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+  .badge-red    { background: #fee2e2; color: #b91c1c; }
+  .badge-amber  { background: #fef3c7; color: #92400e; }
+
+  .phone-penalty { background: #fff1f0; border: 1.5px solid #fecaca; border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 0.6rem; font-size: 0.78rem; color: #7f1d1d; line-height: 1.6; }
+  .phone-penalty strong { color: #b91c1c; }
+
+  /* ── warmup / work / gym cards ── */
+  .info-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.3rem; }
+  .info-row { display: flex; gap: 0.8rem; align-items: flex-start; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
+  .info-row:last-child { border-bottom: none; }
+  .w-step { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); min-width: 62px; padding-top: 2px; flex-shrink: 0; }
+  .w-text { font-size: 0.8rem; font-weight: 600; }
+  .w-sub  { font-size: 0.71rem; color: var(--muted); margin-top: 0.15rem; line-height: 1.5; }
+
+  /* ── cert grid ── */
+  .cert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .cert-day-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.9rem; background: var(--card); }
+  .cd-day  { font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--muted); margin-bottom: 0.2rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .cd-cert { font-weight: 600; font-size: 0.8rem; margin-bottom: 0.15rem; }
+  .cd-time { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--muted); }
+  .cd-task { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+  .aws-card    { border-left: 3px solid #f59e0b; }
+  .db-card     { border-left: 3px solid #7c3aed; }
+  .snow-card   { border-left: 3px solid #6a9fb5; }
+  .nvidia-card { border-left: 3px solid #76b900; }
+  .review-card { border-left: 3px solid #e5e7eb; }
+
+  /* ── quote ── */
+  .quote-block { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem 1.8rem; margin-top: 1rem; text-align: center; position: relative; }
+  .quote-block::before { content: '\201C'; position: absolute; top: -0.6rem; left: 1.2rem; font-size: 5rem; color: var(--border); font-family: Georgia, serif; line-height: 1; }
+  .quote-text { font-size: 1.05rem; font-weight: 500; line-height: 1.75; color: var(--text); margin-bottom: 0.8rem; position: relative; }
+  .quote-attr { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-label">study calendar · updated march 27, 2026</div>
+  <h1>Ning's Study Calendar</h1>
+  <p>Starting March 31 · 12 certifications · 3 phases</p>
+</div>
+
+
+<!-- ═══ OVERVIEW LIST ═══ -->
+<div class="section">
+  <div class="section-title">All Certifications & Books — Full Timeline</div>
+  <div class="overview-phases">
+
+    <div class="ov-phase">
+      <div class="ov-phase-header">
+        <div class="ov-phase-dot" style="background:var(--phase1);"></div>
+        <div class="ov-phase-title" style="color:var(--phase1);">Phase 1 — Data Engineering</div>
+        <div class="ov-phase-dates">Mar 31 – Apr 11</div>
+      </div>
+      <div class="ov-items">
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">AWS Data Engineer – Associate</span><span class="ov-when">Mar 31 – Apr 2</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">Databricks Professional Data Engineer</span><span class="ov-when">Apr 3 – Apr 4</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">Designing Data-Intensive Applications — Ch. 1–5</span><span class="ov-when">Week 1 mornings</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">SnowPro Advanced Data Engineer</span><span class="ov-when">Apr 7 – Apr 9</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">SnowPro Advanced Architect</span><span class="ov-when">Apr 10 – Apr 11</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">Designing Data-Intensive Applications — Ch. 6–12</span><span class="ov-when">Week 2 mornings</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">Parallel and HPC (Robey) — Ch. 1–4</span><span class="ov-when">Week 2 mornings</span></div>
+      </div>
+    </div>
+
+    <div class="ov-phase">
+      <div class="ov-phase-header">
+        <div class="ov-phase-dot" style="background:var(--phase2);"></div>
+        <div class="ov-phase-title" style="color:var(--phase2);">Phase 2 — AI & Generative AI</div>
+        <div class="ov-phase-dates">Apr 14 – Apr 25</div>
+      </div>
+      <div class="ov-items">
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">AWS AI Practitioner / Generative AI – Professional</span><span class="ov-when">Apr 14 – Apr 18</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">NVIDIA Accelerated Data Science</span><span class="ov-when">Apr 14 – Apr 18</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">AI Engineering (Chip Huyen) — Ch. 1–6</span><span class="ov-when">Week 3 mornings</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">NVIDIA Generative AI / LLM Professional</span><span class="ov-when">Apr 21 – Apr 25</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">NVIDIA Agentic AI</span><span class="ov-when">Apr 21 – Apr 25</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">AI Engineering (Chip Huyen) — Ch. 7–12</span><span class="ov-when">Week 4 mornings</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">Parallel and HPC (Robey) — Ch. 5–end</span><span class="ov-when">Week 4 mornings</span></div>
+      </div>
+    </div>
+
+    <div class="ov-phase">
+      <div class="ov-phase-header">
+        <div class="ov-phase-dot" style="background:var(--phase3);"></div>
+        <div class="ov-phase-title" style="color:var(--phase3);">Phase 3 — Compliance & Cloud Architecture</div>
+        <div class="ov-phase-dates">Apr 28 – May 9</div>
+      </div>
+      <div class="ov-items">
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">CIPP/US</span><span class="ov-when">Apr 28 – May 2</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">System Design Interview (Alex Xu) — Ch. 1–8</span><span class="ov-when">Week 5 mornings</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">AWS Solutions Architect – Professional</span><span class="ov-when">May 5 – May 8</span></div>
+        <div class="ov-item"><span class="ov-tag tag-book">Book</span><span class="ov-name">System Design Interview (Alex Xu) — Ch. 9–16</span><span class="ov-when">Week 6 mornings</span></div>
+      </div>
+    </div>
+
+    <div class="ov-phase">
+      <div class="ov-phase-header">
+        <div class="ov-phase-dot" style="background:var(--muted);"></div>
+        <div class="ov-phase-title" style="color:var(--muted);">Continuing after Phase 3</div>
+        <div class="ov-phase-dates">May 10+</div>
+      </div>
+      <div class="ov-items">
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">Azure Solutions Architect</span><span class="ov-when">TBD</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">Google Solutions Architect</span><span class="ov-when">TBD</span></div>
+        <div class="ov-item"><span class="ov-tag tag-cert">Cert</span><span class="ov-name">Applied GenAI Certificate (JHU)</span><span class="ov-when">TBD</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+
+<!-- ═══ DAILY SCHEDULE ═══ -->
+<div class="section">
+  <div class="section-title">Daily Schedule</div>
+
+  <div class="phone-penalty">
+    📵 <strong>Phone rule:</strong> No phone for the first 30 minutes after waking. If you use it before then, your whole morning focus window is compromised — the algorithm will eat the study session. Pill + coffee first, always.
+  </div>
+
+  <div class="card">
+
+    <div class="time-block warn-block">
+      <div class="block-accent ac-warn"></div>
+      <div class="block-inner">
+        <div class="time-tag">7:00–7:15</div>
+        <div class="block-content">
+          <div class="block-label">Wake Up — Pill + Brew Coffee <span class="badge badge-red">no phone</span></div>
+          <div class="block-desc">Get up, take pill, start the coffee. No phone at all. Just let your body and brain boot quietly.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block warn-block">
+      <div class="block-accent ac-phone"></div>
+      <div class="block-inner">
+        <div class="time-tag">7:15–7:30</div>
+        <div class="block-content">
+          <div class="block-label">Phone-Free Window Continues <span class="badge badge-red">still no phone</span></div>
+          <div class="block-desc">Drink your coffee. Sit, stretch, look out a window. Your focus quality for the entire day gets set in these 30 minutes. Don't waste it on a screen.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-warn"></div>
+      <div class="block-inner">
+        <div class="time-tag">7:30–8:00</div>
+        <div class="block-content">
+          <div class="block-label">🍳 Breakfast <span class="badge badge-amber">eat before studying</span></div>
+          <div class="block-desc">Non-negotiable — you know you can't focus hungry. Eat a real meal. Don't rush it. This is the fuel for your 8am reading block.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-read"></div>
+      <div class="block-inner">
+        <div class="time-tag">8:00–9:00</div>
+        <div class="block-content">
+          <div class="block-label">📖 Morning Book Reading <span class="badge badge-amber">no video courses</span></div>
+          <div class="block-desc">Reading only — no video courses, no labs, no quizzes in the morning. Your brain absorbs well but can't actively produce yet. Read whichever book is active this week: DDIA, Chip Huyen, System Design, or Robey. One hour, slow and focused.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-work"></div>
+      <div class="block-inner">
+        <div class="time-tag">9:00–9:30</div>
+        <div class="block-content">
+          <div class="block-label">🔵 Work Start — Plan Your Day <span class="badge badge-blue">3 priorities only</span></div>
+          <div class="block-desc">Open Slack and email — scan, don't spiral. Before touching anything else, write your 3 work priorities for today. This 30 min sets the direction so you don't spend the day in reactive mode.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-work"></div>
+      <div class="block-inner">
+        <div class="time-tag">9:30–12:00</div>
+        <div class="block-content">
+          <div class="block-label">🔵 Morning Work — Meetings + Lighter Tasks</div>
+          <div class="block-desc">Meetings typically land here. Between meetings: replies, reviews, standups, async tasks. Don't burn deep focus on admin. Save the heavy thinking for afternoon.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-work"></div>
+      <div class="block-inner">
+        <div class="time-tag">12:00–12:45</div>
+        <div class="block-content">
+          <div class="block-label">🍱 Lunch + Real Break</div>
+          <div class="block-desc">Fully step away. Eat properly. A 10-min walk here dramatically improves your afternoon output. Don't eat at your desk.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-work"></div>
+      <div class="block-inner">
+        <div class="time-tag">12:45–4:00</div>
+        <div class="block-content">
+          <div class="block-label">🔵 Deep Work — Hardest Tasks <span class="badge badge-blue">close Slack</span></div>
+          <div class="block-desc">Your best focus window. Close Slack notifications. Do your most cognitively demanding work here — analysis, writing, strategy, complex problem-solving. Protect this block.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-work"></div>
+      <div class="block-inner">
+        <div class="time-tag">4:00–4:30</div>
+        <div class="block-content">
+          <div class="block-label">Work Wrap + Admin</div>
+          <div class="block-desc">Slack sweep, reply emails, write tomorrow's 3 work priorities. Close the work day cleanly. Hard stop at 4:30.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block dog-block">
+      <div class="block-accent ac-dog"></div>
+      <div class="block-inner">
+        <div class="time-tag">4:30–6:00</div>
+        <div class="block-content">
+          <div class="block-label">🐕 Dog Park — Sacred Reset</div>
+          <div class="block-desc">Non-negotiable. Movement + fresh air + your dog = the reason your 7pm cert session actually works.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-health"></div>
+      <div class="block-inner">
+        <div class="time-tag">6:00–7:00</div>
+        <div class="block-content">
+          <div class="block-label">Dinner + Decompress <span class="badge badge-blue">Tue · Thu: gym here</span></div>
+          <div class="block-desc">Eat well and decompress. <strong>Tue/Thu:</strong> gym 6–6:45pm after dog park, then eat quickly before 7pm cert.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block peak-block">
+      <div class="block-accent ac-cert"></div>
+      <div class="block-inner">
+        <div class="time-tag">7:00–9:30</div>
+        <div class="block-content">
+          <div class="block-label">🟣 Cert Deep Work — Peak Window <span class="badge badge-purple">your prime time</span></div>
+          <div class="block-desc">Videos, labs, hands-on practice. This is when your brain is actually ready for active learning. No reading — this is doing time. Rotate certs by phase (see rotation below).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block peak-block">
+      <div class="block-accent ac-cert"></div>
+      <div class="block-inner">
+        <div class="time-tag">9:30–10:00</div>
+        <div class="block-content">
+          <div class="block-label">📝 Cert Review + Notes</div>
+          <div class="block-desc">Write 3 things you learned tonight. Close the loop. Don't skip — this is how it sticks.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-admin"></div>
+      <div class="block-inner">
+        <div class="time-tag">10:00–10:30</div>
+        <div class="block-content">
+          <div class="block-label">Life Admin (optional)</div>
+          <div class="block-desc">Reimbursements, resume, personal emails. Only if needed. Hard stop at 10:30.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-block">
+      <div class="block-accent ac-rest"></div>
+      <div class="block-inner">
+        <div class="time-tag">10:30–11:00</div>
+        <div class="block-content">
+          <div class="block-label">Wind Down — No Screens</div>
+          <div class="block-desc">No phone. Write tomorrow's 3 work priorities if you haven't yet. This is how you stop the anxiety loop before sleep.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══ WORK PRODUCTIVITY ═══ -->
+<div class="section">
+  <div class="section-title">Work Productivity System — Finish Strong by 4:30</div>
+  <div class="info-card">
+
+    <div class="info-row">
+      <div class="w-step" style="color:#2d6be4; font-weight:600;">9:00am</div>
+      <div>
+        <div class="w-text">Write 3 priorities before touching anything</div>
+        <div class="w-sub">Not a to-do list — exactly 3 things that would make today a win. Put them somewhere visible. This is the single best thing you can do to not lose the day to Slack drift.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#2d6be4; font-weight:600;">Meetings</div>
+      <div>
+        <div class="w-text">Enter with one clear question to answer</div>
+        <div class="w-sub">Before each meeting, write one sentence: "I need X out of this." Walk out with that answer. Stops passive sitting and 45-min time losses.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#2d6be4; font-weight:600;">12:45pm</div>
+      <div>
+        <div class="w-text">Deep work: close Slack, phone face-down</div>
+        <div class="w-sub">Set a 90-min timer. No Slack, no email. Most things can wait. This afternoon block is where your real work output actually happens.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#e85d4a; font-weight:600;">Rule</div>
+      <div>
+        <div class="w-text">Stuck on something? Timebox it — 20 min max</div>
+        <div class="w-sub">Set a 20-min timer. If you're not unstuck, write where you left off and move on. Spiraling on one thing tanks the whole day and bleeds into your evening.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#2d9e6b; font-weight:600;">4:00pm</div>
+      <div>
+        <div class="w-text">Shutdown ritual — 3 lines and close</div>
+        <div class="w-sub">Write: what you finished, what's still open, one thing for tomorrow. Close your laptop. This prevents the guilt-spiral of "I should still be working" that kills your cert session.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══ CERT ROTATION ═══ -->
+<div class="section">
+  <div class="section-title">Evening Cert Rotation — 7:00–9:30pm</div>
+  <div class="cert-grid">
+
+    <div class="cert-day-card aws-card">
+      <div class="cd-day">Monday</div>
+      <div class="cd-cert">☁️ AWS Data Engineer</div>
+      <div class="cd-time">7:00–9:30pm</div>
+      <div class="cd-task">Videos + follow-along labs</div>
+    </div>
+
+    <div class="cert-day-card db-card">
+      <div class="cd-day">Tuesday</div>
+      <div class="cd-cert">🟣 Databricks</div>
+      <div class="cd-time">7:00–9:30pm</div>
+      <div class="cd-task">Videos + practice notebooks</div>
+    </div>
+
+    <div class="cert-day-card snow-card">
+      <div class="cd-day">Wednesday</div>
+      <div class="cd-cert">❄️ SnowPro DE / Architect</div>
+      <div class="cd-time">7:00–9:30pm</div>
+      <div class="cd-task">Labs + practice questions</div>
+    </div>
+
+    <div class="cert-day-card aws-card">
+      <div class="cd-day">Thursday</div>
+      <div class="cd-cert">☁️ AWS / catch-up</div>
+      <div class="cd-time">7:00–9:30pm</div>
+      <div class="cd-task">Weak areas + mock questions</div>
+    </div>
+
+    <div class="cert-day-card db-card">
+      <div class="cd-day">Friday</div>
+      <div class="cd-cert">🟣 Active cert review</div>
+      <div class="cd-time">7:00–9:00pm</div>
+      <div class="cd-task">Consolidate the week's material</div>
+    </div>
+
+    <div class="cert-day-card nvidia-card">
+      <div class="cd-day">Saturday</div>
+      <div class="cd-cert">🟢 NVIDIA / AI (Phase 2+)</div>
+      <div class="cd-time">7:00–9:00pm</div>
+      <div class="cd-task">Practice exam + review</div>
+    </div>
+
+    <div class="cert-day-card review-card">
+      <div class="cd-day">Sunday</div>
+      <div class="cd-cert">🔁 Weekly Review + Rest</div>
+      <div class="cd-time">Light — 1 hr max</div>
+      <div class="cd-task">What do you know cold? What needs work? Plan next week.</div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══ GYM ═══ -->
+<div class="section">
+  <div class="section-title">Gym Strategy</div>
+  <div class="info-card">
+
+    <div class="info-row">
+      <div class="w-step" style="color:#10b981; font-weight:600;">MON WED FRI</div>
+      <div>
+        <div class="w-text">Light gym — morning or midday</div>
+        <div class="w-sub">Don't let it eat into your 8am reading block. Keep it moderate — this is your "activate" session, not a PR day.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#7c3aed; font-weight:600;">TUE THU</div>
+      <div>
+        <div class="w-text">Heavy gym — 6:00pm, after dog park</div>
+        <div class="w-sub">Go harder here, you've already decompressed from work. Keep it 45 min max to hit 7pm cert on time.</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <div class="w-step" style="color:#e85d4a; font-weight:600;">Rule</div>
+      <div>
+        <div class="w-text">Under 6hrs sleep? Skip gym, walk instead</div>
+        <div class="w-sub">A tired gym session costs you the whole day. A 20-min walk gives you 80% of the benefit. Protect the 7pm cert block above everything.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══ QUOTE ═══ -->
+<div class="section">
+  <div class="section-title">Keep Going</div>
+  <div class="quote-block">
+    <div class="quote-text">Believe you can and you're halfway there.</div>
+    <div class="quote-attr">— Theodore Roosevelt</div>
+  </div>
+</div>
+
+</body>
+</html>
