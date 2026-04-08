@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ning · Command Center</title>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }                        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue }       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, GoogleAuthProvider,
+           signInWithPopup, signInWithRedirect,
+           getRedirectResult, signOut,
+           onAuthStateChanged }                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAwHK8-cIR3ZvOkFhiP2RoAVfGniHki5QY",
+    authDomain: "mba-tracker-f5360.firebaseapp.com",
+    databaseURL: "https://mba-tracker-f5360-default-rtdb.firebaseio.com",
+    projectId: "mba-tracker-f5360",
+    storageBucket: "mba-tracker-f5360.firebasestorage.app",
+    messagingSenderId: "582179905850",
+    appId: "1:582179905850:web:e59e93b91e957efb527003"
+  };
+
+  const ALLOWED_EMAIL = "1ninghan@gmail.com";
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  let db, auth, unsubscribeDB = null;
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    db   = getDatabase(app);
+    auth = getAuth(app);
+
+    window._signIn = async () => {
+      try {
+        const provider = new GoogleAuthProvider();
+        if (isMobile) { await signInWithRedirect(auth, provider); }
+        else           { await signInWithPopup(auth, provider); }
+      } catch(e) { showLoginError('Sign-in failed — please try again.'); }
+    };
+
+    getRedirectResult(auth).catch(e => showLoginError('Sign-in failed after redirect.'));
+
+    window._signOut = async () => {
+      if (unsubscribeDB) { unsubscribeDB(); unsubscribeDB = null; }
+      await signOut(auth);
+    };
+
+    onAuthStateChanged(auth, user => {
+      if (user && user.email === ALLOWED_EMAIL) {
+        showApp(user); startDBListener();
+      } else if (user) {
+        signOut(auth);
+        showLoginError('Access denied. Sign in as ' + ALLOWED_EMAIL);
+      } else {
+        showLogin();
+      }
+    });
+
+  } catch(e) {
+    console.warn('Firebase failed, using localStorage');
+    showAppDirect();
+  }
+
+  function startDBListener() {
+    if (unsubscribeDB) unsubscribeDB();
+    unsubscribeDB = onValue(ref(db, 'command-center'), snap => {
+      const data = snap.exists() ? snap.val() : {};
+      window._fbData = data;
+      if (window._appReady) window._syncFromFirebase(data);
+    });
+    window._saveToFirebase = async (path, value) => {
+      await set(ref(db, 'command-center/' + path), value);
+    };
+    window._firebaseReady = true;
+  }
+
+  function showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-wrap').style.display = 'none';
+    document.getElementById('login-error').style.display = 'none';
+  }
+  function showLoginError(msg) {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-wrap').style.display = 'none';
+    const el = document.getElementById('login-error');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function showApp(user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-wrap').style.display = 'block';
+    document.getElementById('user-name').textContent = user.displayName?.split(' ')[0] || 'Ning';
+    const photo = document.getElementById('user-photo');
+    photo.src = user.photoURL||''; photo.style.display = user.photoURL?'block':'none';
+    document.getElementById('db-status').textContent = '● Synced';
+    document.getElementById('db-status').style.color = '#39D353';
+    window._appReady = true;
+    if (window._fbData) window._syncFromFirebase(window._fbData);
+    else window._initApp();
+  }
+  function showAppDirect() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-wrap').style.display = 'block';
+    document.getElementById('db-status').textContent = '● Offline';
+    window._appReady = true;
+    window._initApp();
+  }
+</script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0D0D0D; color: #E8E0CC; min-height: 100vh; background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(245,197,24,0.05) 0%, transparent 60%); }
+@keyframes cffall { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(80px) rotate(360deg)} }
+
+/* LOGIN */
+#login-screen { position:fixed;inset:0;background:#0D0D0D;display:flex;align-items:center;justify-content:center;z-index:9000;padding:24px; }
+.login-card { background:#161616;border:1px solid #2E2E2E;border-radius:16px;padding:44px 40px;max-width:380px;width:100%;text-align:center; }
+.login-emblem { font-size:2.4rem;margin-bottom:18px; }
+.login-title { font-size:1.5rem;font-weight:700;color:#F5C518;margin-bottom:8px; }
+.login-sub { font-size:0.82rem;color:#7A7060;margin-bottom:26px;line-height:1.6; }
+.google-btn { display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px 20px;background:#F5C518;color:#000;border:none;border-radius:8px;font-size:0.88rem;font-weight:700;cursor:pointer;transition:all 0.15s; }
+.google-btn:hover { background:#e8b800;transform:translateY(-1px); }
+#login-error { display:none;margin-top:14px;padding:10px 14px;background:rgba(255,68,68,0.1);border:1px solid #FF444444;border-radius:6px;font-size:0.78rem;color:#FF6666;text-align:left; }
+.login-note { margin-top:14px;font-size:0.7rem;color:#5a5040; }
+
+/* HEADER */
+.site-header { background:#111;border-bottom:1px solid #2E2E2E;position:sticky;top:0;z-index:100; }
+.header-inner { max-width:1100px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap; }
+.brand { font-size:1rem;font-weight:700;color:#F5C518; }
+.user-area { display:flex;align-items:center;gap:8px;margin-left:auto; }
+.user-photo { width:26px;height:26px;border-radius:50%;border:1.5px solid #3E3E3E;object-fit:cover;display:none; }
+.user-name { font-size:0.76rem;color:#7A7060;font-family:'Courier New',monospace; }
+#db-status { font-size:0.68rem;color:#7A7060;font-family:'Courier New',monospace; }
+.signout-btn { background:transparent;border:1px solid #2E2E2E;color:#7A7060;padding:4px 10px;border-radius:20px;font-size:0.7rem;cursor:pointer;transition:all 0.15s; }
+.signout-btn:hover { border-color:#444;color:#E8E0CC; }
+
+/* LAYOUT */
+.cc-wrap { max-width:1100px;margin:0 auto;padding:20px 24px 60px; }
+.hdr { display:flex;align-items:baseline;gap:12px;padding-bottom:16px;border-bottom:1px solid #2E2E2E;margin-bottom:18px;flex-wrap:wrap; }
+.hdr-title { font-size:2rem;font-weight:700;color:#F5C518; }
+.hdr-date { font-size:0.73rem;color:#7A7060;margin-left:auto;font-family:'Courier New',monospace; }
+.hdr-badge { font-size:0.7rem;padding:3px 12px;border-radius:20px;background:rgba(57,211,83,0.12);color:#39D353;border:1px solid #39D35333; }
+.tabs { display:flex;gap:6px;margin-bottom:16px; }
+.tab { font-size:0.68rem;padding:7px 16px;border-radius:6px;border:1px solid #2E2E2E;background:transparent;color:#7A7060;cursor:pointer;font-family:'Courier New',monospace;letter-spacing:0.08em;text-transform:uppercase;transition:all 0.15s; }
+.tab:hover { border-color:#444;color:#E8E0CC; }
+.tab.active { background:#1E1E1E;color:#F5C518;border-color:#F5C51844; }
+.streaks { display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px; }
+.streak-card { background:#161616;border:1px solid #2E2E2E;border-radius:8px;padding:16px 18px;position:relative;overflow:hidden; }
+.streak-top { height:3px;position:absolute;top:0;left:0;right:0; }
+.streak-lbl { font-size:0.58rem;color:#7A7060;margin-bottom:6px;margin-top:4px;font-family:'Courier New',monospace;letter-spacing:0.12em;text-transform:uppercase; }
+.streak-num { font-size:2.6rem;font-weight:700;line-height:1; }
+.streak-sub { font-size:0.64rem;color:#5a5040;margin-top:4px; }
+.panel { background:#161616;border:1px solid #2E2E2E;border-radius:8px;padding:18px; }
+.panel-title { font-size:0.98rem;font-weight:600;color:#E8E0CC;margin-bottom:4px; }
+.panel-sub { font-size:0.75rem;color:#7A7060;margin-bottom:14px; }
+.mvd-item { display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #2E2E2E;border-radius:6px;margin-bottom:8px;cursor:pointer;transition:all 0.12s;background:#1E1E1E;user-select:none; }
+.mvd-item:hover { border-color:#444; }
+.mvd-item.done { border-color:rgba(57,211,83,0.35);background:rgba(57,211,83,0.06); }
+.mvd-check { width:18px;height:18px;border-radius:4px;border:1.5px solid #3E3E3E;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#000;font-weight:700;transition:all 0.12s; }
+.mvd-item.done .mvd-check { background:#39D353;border-color:#39D353; }
+.mvd-lbl { flex:1;font-size:0.85rem;color:#E8E0CC;font-weight:500; }
+.mvd-item.done .mvd-lbl { color:#6a6050;text-decoration:line-through; }
+.mvd-meta { font-size:0.67rem;color:#7A7060;margin-top:2px;font-family:'Courier New',monospace; }
+.mvd-tag { font-size:0.58rem;padding:2px 8px;border-radius:20px;flex-shrink:0;font-family:'Courier New',monospace;letter-spacing:0.06em;text-transform:uppercase; }
+.prog-bar-bg { height:4px;background:#272727;border-radius:3px;overflow:hidden;margin-top:14px; }
+.prog-bar-fill { height:100%;border-radius:3px;background:#39D353;transition:width 0.3s; }
+.prog-lbl { font-size:0.64rem;color:#7A7060;margin-top:5px;font-family:'Courier New',monospace; }
+.two-col { display:grid;grid-template-columns:1fr 310px;gap:14px; }
+.side-col { display:flex;flex-direction:column;gap:12px; }
+.launch-step { display:flex;gap:10px;margin-bottom:10px;align-items:flex-start; }
+.step-n { width:20px;height:20px;border-radius:50%;background:rgba(255,107,53,0.18);color:#FF6B35;font-size:0.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px; }
+.step-txt { font-size:0.77rem;color:#7A7060;line-height:1.5; }
+.step-txt strong { color:#E8E0CC; }
+textarea { width:100%;background:#1E1E1E;border:1px solid #2E2E2E;border-radius:5px;color:#E8E0CC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:0.8rem;padding:9px 11px;resize:none;line-height:1.5;outline:none;transition:border-color 0.15s; }
+textarea:focus { border-color:#F5C518; }
+textarea::placeholder { color:#5a5040; }
+.field-lbl { font-size:0.58rem;color:#7A7060;margin-bottom:5px;font-family:'Courier New',monospace;letter-spacing:0.1em;text-transform:uppercase; }
+.save-bar { display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:11px 16px;background:#161616;border:1px solid #2E2E2E;border-radius:8px; }
+.save-msg { font-size:0.72rem;color:#7A7060;font-family:'Courier New',monospace; }
+.save-msg.saved { color:#39D353; }
+.save-msg.saving { color:#F5C518; }
+.btn-row { display:flex;gap:8px; }
+.btn { font-size:0.66rem;padding:7px 16px;border-radius:5px;cursor:pointer;border:1px solid #2E2E2E;background:transparent;color:#7A7060;font-family:'Courier New',monospace;letter-spacing:0.08em;text-transform:uppercase;transition:all 0.15s; }
+.btn:hover { border-color:#444;color:#E8E0CC; }
+.btn-primary { background:#F5C518;color:#000;border-color:#F5C518;font-weight:700; }
+.btn-primary:hover { background:#e8b800; }
+.week-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:12px; }
+.day-card { background:#161616;border:1px solid #2E2E2E;border-radius:8px;padding:12px 6px;text-align:center; }
+.day-card.today { border-color:#F5C51855;background:#1a1a10; }
+.day-name { font-size:0.57rem;color:#7A7060;margin-bottom:4px;font-family:'Courier New',monospace;letter-spacing:0.1em;text-transform:uppercase; }
+.day-card.today .day-name { color:#F5C518; }
+.day-num { font-size:1.1rem;font-weight:600;color:#E8E0CC;margin-bottom:8px; }
+.day-card.today .day-num { color:#F5C518; }
+.day-dots { display:flex;justify-content:center;gap:3px;margin-bottom:6px;flex-wrap:wrap; }
+.dot { width:8px;height:8px;border-radius:2px;background:#272727; }
+.day-score { font-size:0.68rem;color:#7A7060;font-family:'Courier New',monospace; }
+.day-score.full { color:#39D353;font-weight:700; }
+.legend { display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px; }
+.legend span { font-size:0.65rem;color:#7A7060;display:flex;align-items:center;gap:4px;font-family:'Courier New',monospace; }
+.legend-dot { width:8px;height:8px;border-radius:2px;display:inline-block; }
+.week-sum-grid { display:grid;grid-template-columns:repeat(5,1fr);gap:8px; }
+.sum-card { background:#161616;border:1px solid #2E2E2E;border-radius:8px;padding:14px 8px;text-align:center; }
+.sum-num { font-size:1.7rem;font-weight:700;line-height:1; }
+.sum-lbl { font-size:0.6rem;color:#7A7060;margin-top:5px;font-family:'Courier New',monospace; }
+.tl-item { margin-bottom:16px; }
+.tl-hdr { display:flex;justify-content:space-between;margin-bottom:4px; }
+.tl-name { font-size:0.83rem;font-weight:500;color:#E8E0CC; }
+.tl-date { font-size:0.66rem;color:#7A7060;font-family:'Courier New',monospace; }
+.tl-bar-bg { height:5px;background:#272727;border-radius:3px;overflow:hidden; }
+.tl-bar { height:100%;border-radius:3px;transition:width 0.5s; }
+.tl-sub { font-size:0.64rem;color:#7A7060;margin-top:3px; }
+.tl-sub.urgent { color:#FF4444; }
+.tl-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.founder-note { margin-top:16px;padding:14px;background:#1E1E1E;border-left:3px solid #F5C518;border-radius:0 6px 6px 0;font-size:0.79rem;color:#9a8860;line-height:1.7; }
+.founder-note strong { color:#F5C518; }
+.confetti-el { position:fixed;pointer-events:none;font-size:1.4rem;z-index:999;animation:cffall 1.2s ease forwards; }
+@media (max-width:768px) { .two-col{grid-template-columns:1fr} .streaks{grid-template-columns:repeat(2,1fr)} .tl-grid{grid-template-columns:1fr} .cc-wrap{padding:14px 14px 60px} }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:flex">
+  <div class="login-card">
+    <div class="login-emblem">⚡</div>
+    <div class="login-title">Command Center</div>
+    <p class="login-sub">Your daily accountability dashboard.<br>Sign in with Google to sync across all devices.</p>
+    <button class="google-btn" onclick="window._signIn()">
+      <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#000" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+        <path fill="#000" opacity=".7" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+        <path fill="#000" opacity=".5" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+        <path fill="#000" opacity=".9" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div id="login-error"></div>
+    <p class="login-note">Only 1ninghan@gmail.com can access this.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-wrap" style="display:none">
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">⚡ Command Center</div>
+      <div class="user-area">
+        <span id="db-status">● Connecting…</span>
+        <img id="user-photo" class="user-photo" src="" alt="">
+        <span class="user-name" id="user-name"></span>
+        <button class="signout-btn" onclick="window._signOut()">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="cc-wrap">
+    <div class="hdr">
+      <div class="hdr-title">Good work, Ning</div>
+      <div id="allDoneBadge" style="display:none" class="hdr-badge">✓ MVD complete</div>
+      <div class="hdr-date" id="dateDisp"></div>
+    </div>
+
+    <div class="streaks" id="streakRow"></div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="setTab('today',this)">Today</button>
+      <button class="tab" onclick="setTab('week',this)">This week</button>
+      <button class="tab" onclick="setTab('timeline',this)">Timeline</button>
+    </div>
+
+    <!-- TODAY -->
+    <div id="tab-today">
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-title">Minimum viable day</div>
+          <div class="panel-sub" id="mvdSub">Check all 5 to count as a win.</div>
+          <div id="mvdList"></div>
+          <div class="prog-bar-bg"><div class="prog-bar-fill" id="progBar" style="width:0%"></div></div>
+          <div class="prog-lbl" id="progLbl">0 / 5 tasks</div>
+        </div>
+        <div class="side-col">
+          <div class="panel">
+            <div class="panel-title" style="color:#FF6B35;margin-bottom:12px;">⚡ Morning launch</div>
+            <div class="launch-step"><div class="step-n">1</div><div class="step-txt"><strong>Open this first</strong> — before phone scroll, every day.</div></div>
+            <div class="launch-step"><div class="step-n">2</div><div class="step-txt"><strong>Read your streaks</strong> — feel the pull not to break the chain.</div></div>
+            <div class="launch-step"><div class="step-n">3</div><div class="step-txt"><strong>Pick one MVD task</strong> — set a 25-min timer. Just start.</div></div>
+            <div class="launch-step"><div class="step-n">4</div><div class="step-txt"><strong>Dog park = reset</strong> — come back and check off movement.</div></div>
+            <div class="launch-step"><div class="step-n">5</div><div class="step-txt"><strong>TV after MVD</strong> — not before. That's the rule.</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title" style="color:#A78BFA;margin-bottom:12px;">Reflection</div>
+            <div class="field-lbl">What actually happened today</div>
+            <textarea id="txtActual" rows="3" placeholder="Honest. No judgment."></textarea>
+            <div class="field-lbl" style="margin-top:10px;">Tomorrow's first move</div>
+            <textarea id="txtTomorrow" rows="3" placeholder="Specific action. Which task first."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="save-bar">
+        <div class="save-msg" id="saveMsg">Unsaved — click Save day to sync to Firebase</div>
+        <div class="btn-row">
+          <button class="btn" onclick="resetToday()">Reset today</button>
+          <button class="btn btn-primary" onclick="saveDay()">Save day ✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEEK -->
+    <div id="tab-week" style="display:none">
+      <div class="week-grid" id="weekGrid"></div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#4FC3F7"></span>Cert</span>
+        <span><span class="legend-dot" style="background:#F5C518"></span>JHU</span>
+        <span><span class="legend-dot" style="background:#EF4444"></span>Job</span>
+        <span><span class="legend-dot" style="background:#22C55E"></span>Movement</span>
+        <span><span class="legend-dot" style="background:#A78BFA"></span>Plan</span>
+      </div>
+      <div class="week-sum-grid" id="weekSum"></div>
+    </div>
+
+    <!-- TIMELINE -->
+    <div id="tab-timeline" style="display:none">
+      <div class="tl-grid">
+        <div class="panel">
+          <div class="panel-title" style="margin-bottom:14px;">Cert + career</div>
+          <div id="tlCert"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title" style="margin-bottom:14px;">Founder path</div>
+          <div id="tlFounder"></div>
+          <div class="founder-note">Every cert = credibility + comp.<br>Every MVD day = 1 step closer to SF.<br>MBA apps open ~Oct 2026.<br><strong>~18 months to build the story.</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MVD = [
+  { id:'cert',  label:'Cert study block',     meta:'30 min min · AWS / Databricks / SnowPro / NVIDIA', color:'#4FC3F7' },
+  { id:'jhu',   label:'JHU coursework',        meta:'1 module, quiz, or assignment',                   color:'#F5C518' },
+  { id:'job',   label:'Job search action',     meta:'1 app, 1 lead, or 1 outreach',                    color:'#EF4444' },
+  { id:'mvmt',  label:'Movement',              meta:'Dog park counts · 20 min walk min',               color:'#22C55E' },
+  { id:'plan',  label:'Plan tomorrow tonight', meta:'Write first move before closing',                  color:'#A78BFA' },
+];
+const TL_CERT = [
+  { name:'AWS cert',              target:'Jun 2025', start:'2025-03-31', end:'2025-06-30', color:'#F59E0B' },
+  { name:'Databricks + SnowPro', target:'Aug 2025', start:'2025-06-01', end:'2025-08-31', color:'#4FC3F7' },
+  { name:'NVIDIA GenAI + CIPP',  target:'Oct 2025', start:'2025-08-01', end:'2025-10-31', color:'#A78BFA' },
+  { name:'MBA apps',             target:'Apr 2027', start:'2025-01-01', end:'2027-04-01', color:'#F5C518' },
+  { name:'Senior role',          target:'Dec 2025', start:'2025-03-01', end:'2025-12-31', color:'#EF4444' },
+];
+const TL_FOUNDER = [
+  { name:'Land senior role',         target:'Dec 2025', pct:30 },
+  { name:'MBA apps submitted',       target:'Apr 2027', pct:5  },
+  { name:'MBA start (Stanford/MIT)', target:'Sep 2027', pct:2  },
+  { name:'Startup launch',           target:'2030+',    pct:0  },
+];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function todayKey() { return new Date().toISOString().slice(0,10); }
+function getWeekDates() {
+  const t=new Date(), dow=t.getDay();
+  return Array.from({length:7},(_,i)=>{ const d=new Date(t); d.setDate(t.getDate()-dow+i); return d.toISOString().slice(0,10); });
+}
+
+let state = { days:{}, streaks:{mvd:0,cert:0,job:0,jhu:0}, bests:{mvd:0,cert:0,job:0,jhu:0}, saveStatus:'idle' };
+
+function getTodayData() {
+  const k=todayKey();
+  if (!state.days[k]) state.days[k]={done:{},actual:'',tomorrow:''};
+  return state.days[k];
+}
+
+window._syncFromFirebase = function(data) {
+  if (data.days)    state.days    = data.days;
+  if (data.streaks) state.streaks = data.streaks;
+  if (data.bests)   state.bests   = data.bests;
+  renderAll();
+};
+
+window._initApp = function() {
+  try {
+    const local = JSON.parse(localStorage.getItem('ning_cc')||'{}');
+    if (local.days)    state.days    = local.days;
+    if (local.streaks) state.streaks = local.streaks;
+    if (local.bests)   state.bests   = local.bests;
+  } catch {}
+  renderAll();
+};
+
+async function saveDay() {
+  state.saveStatus='saving'; renderSaveMsg();
+  const k=todayKey();
+  const today=getTodayData();
+  today.actual   = document.getElementById('txtActual').value;
+  today.tomorrow = document.getElementById('txtTomorrow').value;
+  state.days[k]=today;
+  if (window._firebaseReady && window._saveToFirebase) {
+    try {
+      await window._saveToFirebase('days/'+k, today);
+      await window._saveToFirebase('streaks', state.streaks);
+      await window._saveToFirebase('bests', state.bests);
+    } catch(e) { localStorage.setItem('ning_cc', JSON.stringify({days:state.days,streaks:state.streaks,bests:state.bests})); }
+  } else {
+    localStorage.setItem('ning_cc', JSON.stringify({days:state.days,streaks:state.streaks,bests:state.bests}));
+  }
+  state.saveStatus='saved'; renderAll();
+  setTimeout(()=>{ state.saveStatus='idle'; renderSaveMsg(); }, 3000);
+}
+
+function recalcStreaks() {
+  const metrics=['mvd','cert','job','jhu'], streaks={mvd:0,cert:0,job:0,jhu:0}, broke={};
+  const today=new Date();
+  for (let off=0; off<90; off++) {
+    const d=new Date(today); d.setDate(today.getDate()-off);
+    const k=d.toISOString().slice(0,10);
+    const done=(state.days[k]||{}).done||{};
+    metrics.forEach(m=>{
+      if (broke[m]) return;
+      const hit = m==='mvd' ? MVD.every(t=>done[t.id]) : !!done[m];
+      if (hit) streaks[m]++; else broke[m]=true;
+    });
+    if (Object.keys(broke).length===metrics.length) break;
+  }
+  return streaks;
+}
+
+function toggleTask(id) {
+  const today=getTodayData();
+  today.done=today.done||{};
+  today.done[id]=!today.done[id];
+  if (today.done[id]) spawnConfetti();
+  state.days[todayKey()]=today;
+  const ns=recalcStreaks(), nb={};
+  Object.keys(ns).forEach(k=>{ nb[k]=Math.max(state.bests[k]||0,ns[k]); });
+  state.streaks=ns; state.bests=nb; state.saveStatus='idle';
+  renderAll();
+}
+
+function resetToday() {
+  if (!confirm('Reset today\'s checkboxes?')) return;
+  const t=getTodayData();
+  state.days[todayKey()]={done:{},actual:t.actual,tomorrow:t.tomorrow};
+  state.saveStatus='idle'; renderAll();
+}
+
+function renderAll() { renderDate();renderStreaks();renderMVD();renderReflection();renderSaveMsg();renderWeek();renderTimeline(); }
+
+function renderDate() { document.getElementById('dateDisp').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); }
+
+function renderStreaks() {
+  const cards=[{label:'MVD streak',key:'mvd',color:'#F5C518'},{label:'Cert study',key:'cert',color:'#4FC3F7'},{label:'Job search',key:'job',color:'#EF4444'},{label:'JHU / GenAI',key:'jhu',color:'#22C55E'}];
+  document.getElementById('streakRow').innerHTML=cards.map(c=>`<div class="streak-card"><div class="streak-top" style="background:${c.color}"></div><div class="streak-lbl">${c.label}</div><div class="streak-num" style="color:${c.color}">${state.streaks[c.key]||0}</div><div class="streak-sub">day streak · best ${state.bests[c.key]||0}</div></div>`).join('');
+}
+
+function renderMVD() {
+  const today=getTodayData(), done=today.done||{}, count=MVD.filter(t=>done[t.id]).length, all=count===MVD.length;
+  document.getElementById('allDoneBadge').style.display=all?'':'none';
+  document.getElementById('mvdSub').textContent=all?'All done — today is a win 🔥':`${count}/5 done · check all 5 to count as a win`;
+  document.getElementById('progBar').style.width=(count/MVD.length*100)+'%';
+  document.getElementById('progLbl').textContent=`${count} / ${MVD.length} tasks`;
+  document.getElementById('mvdList').innerHTML=MVD.map(t=>`<div class="mvd-item ${done[t.id]?'done':''}" onclick="toggleTask('${t.id}')"><div class="mvd-check">${done[t.id]?'✓':''}</div><div style="flex:1"><div class="mvd-lbl">${t.label}</div><div class="mvd-meta">${t.meta}</div></div><div class="mvd-tag" style="background:${t.color}22;color:${t.color}">${t.id}</div></div>`).join('');
+}
+
+function renderReflection() { const t=getTodayData(); document.getElementById('txtActual').value=t.actual||''; document.getElementById('txtTomorrow').value=t.tomorrow||''; }
+
+function renderSaveMsg() {
+  const el=document.getElementById('saveMsg');
+  if (state.saveStatus==='saved'){el.textContent='✓ Saved to Firebase';el.className='save-msg saved';}
+  else if(state.saveStatus==='saving'){el.textContent='Saving…';el.className='save-msg saving';}
+  else{el.textContent='Unsaved — click Save day to sync';el.className='save-msg';}
+}
+
+function renderWeek() {
+  const dates=getWeekDates(), todayK=todayKey();
+  document.getElementById('weekGrid').innerHTML=dates.map(k=>{
+    const done=(state.days[k]||{}).done||{}, total=MVD.filter(t=>done[t.id]).length, isToday=k===todayK;
+    const dayN=DAYS[new Date(k+'T12:00:00').getDay()], dayD=new Date(k+'T12:00:00').getDate();
+    return `<div class="day-card ${isToday?'today':''}"><div class="day-name">${dayN}</div><div class="day-num">${dayD}</div><div class="day-dots">${MVD.map(t=>`<div class="dot" style="${done[t.id]?'background:'+t.color:''}"></div>`).join('')}</div><div class="day-score ${total===MVD.length?'full':''}">${total}/${MVD.length}</div></div>`;
+  }).join('');
+  document.getElementById('weekSum').innerHTML=MVD.map(t=>{
+    const count=dates.filter(k=>(state.days[k]?.done||{})[t.id]).length;
+    return `<div class="sum-card"><div class="sum-num" style="color:${t.color}">${count}</div><div class="sum-lbl">${t.label.split(' ')[0]} / 7 days</div></div>`;
+  }).join('');
+}
+
+function renderTimeline() {
+  const now=Date.now();
+  document.getElementById('tlCert').innerHTML=TL_CERT.map(item=>{
+    const start=new Date(item.start).getTime(),end=new Date(item.end).getTime();
+    const pct=Math.min(100,Math.max(0,Math.round((now-start)/(end-start)*100))), urgent=pct>75;
+    return `<div class="tl-item"><div class="tl-hdr"><span class="tl-name">${item.name}</span><span class="tl-date">${item.target}</span></div><div class="tl-bar-bg"><div class="tl-bar" style="width:${pct}%;background:${urgent?'#EF4444':item.color}"></div></div><div class="tl-sub ${urgent?'urgent':''}">${pct}% elapsed${urgent?' ⚠':''}</div></div>`;
+  }).join('');
+  document.getElementById('tlFounder').innerHTML=TL_FOUNDER.map(item=>`<div class="tl-item"><div class="tl-hdr"><span class="tl-name">${item.name}</span><span class="tl-date">${item.target}</span></div><div class="tl-bar-bg"><div class="tl-bar" style="width:${item.pct}%;background:#A78BFA"></div></div><div class="tl-sub">${item.pct}% complete</div></div>`).join('');
+}
+
+function spawnConfetti() {
+  for(let i=0;i<4;i++){
+    const el=document.createElement('div'); el.className='confetti-el';
+    el.textContent=['✓','!','★'][Math.floor(Math.random()*3)];
+    el.style.cssText=`left:${20+Math.random()*60}vw;top:${20+Math.random()*40}vh;color:#39D353;font-weight:700`;
+    document.body.appendChild(el); setTimeout(()=>el.remove(),1300);
+  }
+}
+
+function setTab(t,btn) {
+  ['today','week','timeline'].forEach(id=>{ document.getElementById('tab-'+id).style.display='none'; });
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+t).style.display=''; btn.classList.add('active');
+}
+</script>
+</body>
+</html>
